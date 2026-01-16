@@ -125,7 +125,7 @@ with col2:
     # --- 结论行 (颜色修正版) ---
     # 天数和金额都使用绿色 #27ae60
     st.markdown(f"""
-    <div style='background-color: #EBF5FB; padding: 10px; border-radius: 5px; margin-top: 10px; text-align: center; color: #0e1117;'>
+    <div style='background-color: #bbceed; padding: 10px; border-radius: 5px; margin-top: 10px; text-align: center; color: #0e1117;'>
         <span style='font-size: 16px; font-weight: bold;'>
             💡 多重保障后，患者用药治疗 <span style='color:#27ae60'>{int(days_usage)}</span> 天，日治疗费用：<span style='color:#27ae60'>¥{daily_avg_cost:,.0f}</span> 元
         </span>
