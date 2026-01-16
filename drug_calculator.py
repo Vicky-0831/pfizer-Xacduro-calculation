@@ -2,113 +2,148 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 
-# 设置网页配置
+# 页面配置
 st.set_page_config(page_title="X药2026模拟器", layout="wide")
 
-# 1. 修改标题
 st.title("X药2026多重支付商保模拟计算器")
 st.markdown("---")
 
 col1, col2 = st.columns([1, 1.5])
 
 with col1:
-    st.subheader("A. 用药与保障参数")
-    
-    # --- 用药参数 ---
+    # --- A. 用药参数 ---
+    st.subheader("A. 用药参数")
     st.info("基础信息设置")
-    # 为了方便演示，这里默认值还是辉瑞那个，您可以自己改
-    price_per_box = st.number_input("药品单价 (元/盒)", value=3179)
-    daily_usage = st.number_input("一日使用盒数", value=4) 
-    days_per_year = st.number_input("年用药天数", value=365)
     
-    # 计算年总费用
-    total_cost = price_per_box * daily_usage * days_per_year
-    st.write(f"**年用药总费用:** ¥{total_cost:,.0f}")
+    # 1. 单价锁定 (disabled=True)
+    price_per_box = st.number_input("药品单价 (元/盒)", value=3179, disabled=True, help="单价已锁定标准价格")
+    
+    # 2. 用量设置
+    daily_usage = st.number_input("一日使用盒数", value=4) 
+    
+    # 3. 天数 (默认改为了7)
+    days_usage = st.number_input("用药天数", value=7, step=1)
+    
+    # 算一下总价
+    total_cost = price_per_box * daily_usage * days_usage
+    st.write(f"**当前周期总费用:** ¥{total_cost:,.0f}")
     
     st.markdown("---")
     
-    # --- 保障参数 ---
+    # --- B. 保障参数 ---
+    st.subheader("B. 保障参数")
     st.info("多重支付设置")
     
-    # 第1重：双坦同行
-    st.write("**第1重保障：双坦同行项目**")
-    is_shuangtan = st.checkbox("参加双坦同行项目", value=True)
-    shuangtan_rate = 0.5 if is_shuangtan else 0.0
-    
-    # 第2重：惠民保 (逻辑大改)
-    st.write("**第2重保障：惠民保**")
+    # 调整顺序：先放惠民保
+    st.write("**第1重保障：惠民保**")
+    # 虽然图表会强制对比，但这里勾选影响顶部的数字计算
     is_huiminbao = st.checkbox("参加当地惠民保", value=True)
     
-    huiminbao_deductible = 0.0
-    huiminbao_rate = 0.0
-    
-    if is_huiminbao:
-        # 这里做成两列，显得紧凑点
-        c1, c2 = st.columns(2)
-        with c1:
-            huiminbao_deductible = st.number_input("起付线 (元)", value=20000.0, step=1000.0)
-        with c2:
-            rate_input = st.number_input("报销比例 (%)", value=60.0, step=5.0)
-            huiminbao_rate = rate_input / 100.0
+    c1, c2 = st.columns(2)
+    with c1:
+        hmb_deductible = st.number_input("惠民保起付线", value=20000.0, step=1000.0)
+    with c2:
+        hmb_rate_input = st.number_input("报销比例 (%)", value=60.0, step=5.0)
+        hmb_rate = hmb_rate_input / 100.0
         
-        st.caption(f"说明：将在第1重保障后，对超过 {huiminbao_deductible:,.0f} 元的部分按 {rate_input}% 报销")
+    st.markdown("---")
+
+    # 再放双坦同行
+    st.write("**第2重保障：双坦同行项目**")
+    is_shuangtan = st.checkbox("参加双坦同行项目", value=True)
+    shuangtan_rate = 0.5 # 固定50%
+    st.caption("说明：双坦项目直接报销总费用的 50%")
 
 with col2:
     st.subheader("结果输出 (模拟测算)")
     
-    # --- 计算核心逻辑 ---
+    # --- 后台逻辑计算 ---
+    # 这里的逻辑：两个保险是独立计算的，然后叠加
     
-    # 1. 计算双坦减免
-    jianmian_shuangtan = total_cost * shuangtan_rate
-    
-    # 2. 计算惠民保减免 (关键逻辑：基于双坦减免后的剩余金额计算)
-    remaining_after_layer1 = total_cost - jianmian_shuangtan
-    
-    # 如果剩余金额大于起付线，才进行报销计算，否则报销为0
-    if is_huiminbao and remaining_after_layer1 > huiminbao_deductible:
-        calculable_amount = remaining_after_layer1 - huiminbao_deductible
-        jianmian_huiminbao = calculable_amount * huiminbao_rate
+    # 1. 计算惠民保报销额 (独立逻辑：总价 - 起付线 * 比例)
+    # 只要总价超过起付线，就开始算，不管双坦有没有报
+    if total_cost > hmb_deductible:
+        reimburse_hmb_val = (total_cost - hmb_deductible) * hmb_rate
     else:
-        jianmian_huiminbao = 0.0
-        
-    # 3. 汇总
-    total_reimburse = jianmian_shuangtan + jianmian_huiminbao
-    final_cost = total_cost - total_reimburse
-    monthly_cost = final_cost / 12 if final_cost > 0 else 0
+        reimburse_hmb_val = 0.0
+
+    # 2. 计算双坦报销额 (独立逻辑：总价 * 50%)
+    reimburse_st_val = total_cost * shuangtan_rate
     
-    # --- 顶部大数字展示 ---
+    # --- 准备图表需要的对比数据 (无论用户是否勾选，我们都算出三种情况给患者看) ---
+    
+    # 情况1：啥都没有
+    cost_scenario_1 = total_cost
+    
+    # 情况2：只有惠民保
+    cost_scenario_2 = total_cost - reimburse_hmb_val
+    if cost_scenario_2 < 0: cost_scenario_2 = 0 # 防止负数
+    
+    # 情况3：双重保障 (惠民保 + 双坦)
+    # 注意：这里假设两者可以叠加报销，直到患者自付为0为止
+    total_reimb_both = reimburse_hmb_val + reimburse_st_val
+    cost_scenario_3 = total_cost - total_reimb_both
+    if cost_scenario_3 < 0: cost_scenario_3 = 0
+    
+    # --- 根据用户勾选展示顶部的“当前结果” ---
+    current_reimburse = 0
+    if is_huiminbao:
+        current_reimburse += reimburse_hmb_val
+    if is_shuangtan:
+        current_reimburse += reimburse_st_val
+        
+    # 防止报销超过总价 (虽然实际上不太可能，但程序要严谨)
+    if current_reimburse > total_cost:
+        current_reimburse = total_cost
+        
+    current_final_cost = total_cost - current_reimburse
+
+    # 展示大数字
     m1, m2, m3 = st.columns(3)
-    m1.metric("年总费用", f"¥{total_cost:,.0f}")
-    m2.metric("报销合计", f"¥{total_reimburse:,.0f}", delta=f"总报销比例 {total_reimburse/total_cost:.1%}")
-    m3.metric("患者年自付", f"¥{final_cost:,.0f}", delta_color="inverse")
+    m1.metric("本周期总费用", f"¥{total_cost:,.0f}")
+    m2.metric("当前报销合计", f"¥{current_reimburse:,.0f}", delta=f"省下 {current_reimburse/total_cost:.1%}")
+    m3.metric("患者最终自付", f"¥{current_final_cost:,.0f}", delta_color="inverse")
     
     st.divider()
-    st.success(f"患者月自付费用 (平均): ¥{monthly_cost:,.0f}")
-
-    # --- 图表：单柱堆叠图 (层层递减效果) ---
-    st.write("### 费用分担构成 (层层支付)")
     
-    # 准备数据：把三个部分叠在一起
-    # 注意顺序：我们希望 自付在最下面，惠民保在中间，双坦在最上面
+    # --- 图表：层层保障对比图 ---
+    st.write("### 📊 费用分担对比 (层层保障)")
+    st.caption("直观对比：不参加保险 vs 仅参加惠民保 vs 参加双重保障的支付差异")
+    
+    # 构造数据
     chart_data = pd.DataFrame({
-        '费用类型': ['1. 双坦同行支付', '2. 惠民保报销', '3. 患者自付'], 
-        '金额': [jianmian_shuangtan, jianmian_huiminbao, final_cost],
-        '项目': ['X药总费用'] * 3  # 只要一根柱子，所以这里名字要一样
+        '情景': ['1. 全自费 (无保障)', '2. 仅有惠民保', '3. 惠民保 + 双坦同行 (推荐)'],
+        '患者支付金额': [cost_scenario_1, cost_scenario_2, cost_scenario_3],
+        '说明': [f'¥{cost_scenario_1:,.0f}', f'¥{cost_scenario_2:,.0f}', f'¥{cost_scenario_3:,.0f}']
     })
     
-    # 颜色定义
-    # 双坦(蓝)，惠民保(绿)，患者自付(红)
-    domain_ = ['1. 双坦同行支付', '2. 惠民保报销', '3. 患者自付']
-    range_ = ['#3498db', '#2ecc71', '#e74c3c'] 
-
-    chart = alt.Chart(chart_data).mark_bar(size=100).encode(
-        x=alt.X('项目', title=None, axis=None), # 不显示X轴标题，简洁
-        y=alt.Y('金额', title='金额 (元)'),
-        color=alt.Color('费用类型', scale=alt.Scale(domain=domain_, range=range_), legend=alt.Legend(title="支付方")),
-        tooltip=['费用类型', '金额'],
-        order=alt.Order('费用类型', sort='ascending') # 控制堆叠顺序
-    ).properties(
-        height=400
+    # 颜色设置：灰色(惨) -> 蓝色(还行) -> 绿色(最棒)
+    # 这是一个横向条形图
+    base = alt.Chart(chart_data).encode(
+        x=alt.X('患者支付金额', title='患者需要掏腰包的钱 (元)'),
+        y=alt.Y('情景', sort=None, title=None), # 不排序，按我们定义的顺序
+        tooltip=['情景', '患者支付金额']
     )
 
-    st.altair_chart(chart, use_container_width=True)
+    bars = base.mark_bar(size=40).encode(
+        color=alt.Color('情景', scale=alt.Scale(
+            domain=['1. 全自费 (无保障)', '2. 仅有惠民保', '3. 惠民保 + 双坦同行 (推荐)'],
+            range=['#95a5a6', '#3498db', '#27ae60'] 
+        ))
+    )
+    
+    # 在柱子旁边加上具体的金额数字，更直观
+    text = base.mark_text(
+        align='left',
+        baseline='middle',
+        dx=3  # 向右偏移一点点
+    ).encode(
+        text='说明'
+    )
+
+    final_chart = (bars + text).properties(height=300)
+
+    st.altair_chart(final_chart, use_container_width=True)
+    
+    st.info(f"💡 **结论：** 参加双重保障后，对比全自费，您本周期预计可节省 **¥{(cost_scenario_1 - cost_scenario_3):,.0f}** 元。")
+
