@@ -152,7 +152,6 @@ with col2:
     base = alt.Chart(chart_data).encode(
         x=alt.X('患者自付费用', title='患者自付费用（元）', scale=alt.Scale(domain=[0, max_val])),
         y=alt.Y('情景', sort=None, title=None), 
-        tooltip=['情景', '患者自付费用']
     )
 
     bars = base.mark_bar(size=40).encode(
