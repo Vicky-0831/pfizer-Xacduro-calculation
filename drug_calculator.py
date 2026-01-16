@@ -42,10 +42,10 @@ with col1:
     st.subheader("A. 用药参数")
     st.info("基础信息设置")
     
-    # 单价锁定 (灰色)
+    # 1. 单价 (锁定状态 -> 会显示灰色)
     price_per_box = st.number_input("药品单价 (元/盒)", value=3179, disabled=True, help="单价已锁定标准价格")
     
-    # 浅蓝色输入框
+    # 2. 其他输入框 (启用状态 -> 会显示浅蓝色)
     daily_usage = st.number_input("一日使用盒数", value=4) 
     days_usage = st.number_input("用药天数", value=7, step=1)
     
