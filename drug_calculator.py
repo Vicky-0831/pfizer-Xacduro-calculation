@@ -5,6 +5,23 @@ import altair as alt
 # 页面配置
 st.set_page_config(page_title="X药2026模拟器", layout="wide")
 
+# --- 核心修改：自定义CSS样式 ---
+# 这段代码会把所有非禁用的输入框背景变成浅蓝色，锁定的保持灰色
+st.markdown("""
+    <style>
+    /* 针对所有启用的数字输入框：设置浅蓝色背景 */
+    input[inputmode="decimal"]:not(:disabled) {
+        background-color: #EBF5FB !important; /* 这里的颜色是清新的浅蓝 */
+        color: #2C3E50 !important;
+        border-radius: 4px; 
+    }
+    /* 确保禁用的输入框（如单价）保持默认的灰色，形成对比 */
+    input:disabled {
+        background-color: transparent !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 st.title("X药2026多重支付商保模拟计算器")
 st.markdown("---")
 
@@ -15,7 +32,10 @@ with col1:
     st.subheader("A. 用药参数")
     st.info("基础信息设置")
     
+    # 单价锁定 (disabled=True) -> 样式会保持灰色
     price_per_box = st.number_input("药品单价 (元/盒)", value=3179, disabled=True, help="单价已锁定标准价格")
+    
+    # 这些输入框会自动变成浅蓝色
     daily_usage = st.number_input("一日使用盒数", value=4) 
     days_usage = st.number_input("用药天数", value=7, step=1)
     
@@ -82,6 +102,16 @@ with col2:
     m2.metric("当前报销合计", f"¥{current_reimburse:,.0f}", delta=f"省下 {current_reimburse/total_cost:.1%}")
     m3.metric("患者最终自付", f"¥{current_final_cost:,.0f}", delta_color="inverse")
     
+    # --- 核心修改：新增结论行 ---
+    # 使用 markdown 加大加粗字体，显示为深蓝色以示强调
+    st.markdown(f"""
+    <div style='background-color: #f0f2f6; padding: 10px; border-radius: 5px; margin-top: 10px; text-align: center;'>
+        <h3 style='color: #0e1117; margin:0;'>
+            💡 多重保障后，患者 <span style='color:#e74c3c'>{int(days_usage)}</span> 日治疗费用：<span style='color:#27ae60'>¥{current_final_cost:,.0f}</span> 元
+        </h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.divider()
     
     # --- 图表：层层保障对比图 ---
@@ -93,7 +123,7 @@ with col2:
         '标签': [f'¥{cost_scenario_1:,.0f}', f'¥{cost_scenario_2:,.0f}', f'¥{cost_scenario_3:,.0f}']
     })
     
-    # 设置横轴的最大值，让文字能显示出来（留出20%的空间）
+    # 设置横轴的最大值
     max_val = chart_data['患者自付费用'].max() * 1.2
 
     base = alt.Chart(chart_data).encode(
@@ -102,19 +132,17 @@ with col2:
         tooltip=['情景', '患者自付费用']
     )
 
-    # 柱状图
     bars = base.mark_bar(size=40).encode(
         color=alt.Color('情景', scale=alt.Scale(
             domain=['无保障', '仅有惠民保', '惠民保+双坦同行'],
-            range=['#e74c3c', '#3498db', '#27ae60']  # 红色 -> 蓝色 -> 绿色
-        ), legend=None) # 隐藏图例，因为Y轴已经写得很清楚了
+            range=['#e74c3c', '#3498db', '#27ae60'] 
+        ), legend=None)
     )
     
-    # 文字标签
     text = base.mark_text(
         align='left',
         baseline='middle',
-        dx=5,  # 偏移量
+        dx=5,
         color='black'
     ).encode(
         text='标签'
@@ -124,5 +152,5 @@ with col2:
 
     st.altair_chart(final_chart, use_container_width=True)
     
-    st.info(f"💡 **结论：** 参加双重保障后，对比无保障，您本周期预计可节省 **¥{(cost_scenario_1 - cost_scenario_3):,.0f}** 元。")
-
+    # 底部的结论文字稍微改一下，避免重复
+    st.info(f"📉 **节省统计：** 相比无保障全额自费，该方案预计共为您节省 **¥{(cost_scenario_1 - cost_scenario_3):,.0f}** 元。")
