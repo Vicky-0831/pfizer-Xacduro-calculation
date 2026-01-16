@@ -127,7 +127,7 @@ with col2:
 
     bars = base.mark_bar(size=40).encode(
         color=alt.Color('情景', scale=alt.Scale(
-            domain=['1. 全自费 (无保障)', '2. 仅有惠民保', '3. 惠民保 + 双坦同行 (推荐)'],
+            domain=['1. 无保障', '2. 仅有惠民保', '3. 惠民保 + 双坦同行'],
             range=['#95a5a6', '#3498db', '#27ae60'] 
         ))
     )
