@@ -12,7 +12,7 @@ st.markdown("""
     /* data-baseweb="input" 是整个输入控件的最外层盒子 */
     div[data-baseweb="input"] {
         background-color: #EBF5FB !important; /* 浅蓝色底 */
-        border: 1px solid #AED6F1 !important; /* 浅蓝色边框 */
+        border: 1px solid #EBF5FB !important; /* 浅蓝色边框 */
         border-radius: 5px !important;
     }
     
