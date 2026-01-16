@@ -11,7 +11,7 @@ st.markdown("""
     /* 1. 【核心】针对所有启用的输入框容器：设置统一浅蓝色背景 */
     /* data-baseweb="input" 是整个输入控件的最外层盒子 */
     div[data-baseweb="input"] {
-        background-color: #EBF5FB !important; /* 浅蓝色底 */
+        background-color: #AED6F1 !important; /* 浅蓝色底 */
         border: 1px solid #EBF5FB !important; /* 浅蓝色边框 */
         border-radius: 5px !important;
     }
