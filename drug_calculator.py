@@ -5,20 +5,29 @@ import altair as alt
 # 页面配置
 st.set_page_config(page_title="X药2026模拟器", layout="wide")
 
-# --- 核心修改1：更强力的 CSS 样式注入 ---
+# --- CSS 样式 (保持之前的蓝色输入框风格) ---
 st.markdown("""
     <style>
-    /* 强制修改所有数字输入框的背景颜色 */
-    div[data-testid="stNumberInput"] input {
-        background-color: #EBF5FB !important; /* 浅蓝色 */
+    /* 针对所有数字输入框的外层容器：设为浅蓝色 */
+    div[data-baseweb="input"] {
+        background-color: #EBF5FB !important;
+        border: 1px solid #AED6F1 !important;
+        border-radius: 5px !important;
+    }
+    /* 让内部的 input 区域背景透明 */
+    div[data-baseweb="input"] input {
+        background-color: transparent !important;
         color: #000000 !important;
         font-weight: 500;
     }
-    
-    /* 针对被禁用的输入框（disabled），还原为灰色 */
-    div[data-testid="stNumberInput"] input:disabled {
-        background-color: #f0f2f6 !important; /* 默认灰色 */
-        color: #888888 !important;
+    /* 针对被禁用(Locked)的输入框，强制改回灰色 */
+    div[data-baseweb="input"]:has(input:disabled) {
+        background-color: #f0f2f6 !important;
+        border: 1px solid rgba(49, 51, 63, 0.2) !important;
+        opacity: 0.7;
+    }
+    div[data-baseweb="input"] input:disabled {
+        color: #666666 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -33,10 +42,10 @@ with col1:
     st.subheader("A. 用药参数")
     st.info("基础信息设置")
     
-    # 1. 单价 (锁定状态 -> 会显示灰色)
+    # 单价锁定 (灰色)
     price_per_box = st.number_input("药品单价 (元/盒)", value=3179, disabled=True, help="单价已锁定标准价格")
     
-    # 2. 其他输入框 (启用状态 -> 会显示浅蓝色)
+    # 浅蓝色输入框
     daily_usage = st.number_input("一日使用盒数", value=4) 
     days_usage = st.number_input("用药天数", value=7, step=1)
     
@@ -94,29 +103,38 @@ with col2:
     
     if current_reimburse > total_cost: current_reimburse = total_cost
     current_final_cost = total_cost - current_reimburse
+    
+    # 计算日均费用 (避免除以0报错)
+    daily_avg_cost = current_final_cost / days_usage if days_usage > 0 else 0
 
     m1, m2, m3 = st.columns(3)
     m1.metric("本周期总费用", f"¥{total_cost:,.0f}")
     m2.metric("当前报销合计", f"¥{current_reimburse:,.0f}", delta=f"省下 {current_reimburse/total_cost:.1%}")
     m3.metric("患者最终自付", f"¥{current_final_cost:,.0f}", delta_color="inverse")
     
-    # --- 核心修改2：调整字体大小 ---
-    # 去掉了 <h3> 标签，改用 font-size: 16px (相当于普通文本大小)，并加粗
+    # --- 结论行 (修改版) ---
+    # 格式：多重保障后，患者用药治疗 X 天，日治疗费用：Y 元
+    # X 和 Y 都使用绿色 (#27ae60)
     st.markdown(f"""
     <div style='background-color: #f0f2f6; padding: 10px; border-radius: 5px; margin-top: 10px; text-align: center; color: #0e1117;'>
         <span style='font-size: 16px; font-weight: bold;'>
-            💡 多重保障后，患者 <span style='color:#e74c3c'>{int(days_usage)}</span> 日治疗费用：<span style='color:#27ae60'>¥{current_final_cost:,.0f}</span> 元
+            💡 多重保障后，患者用药治疗 <span style='color:#27ae60'>{int(days_usage)}</span> 天，日治疗费用：<span style='color:#27ae60'>¥{daily_avg_cost:,.0f}</span> 元
         </span>
     </div>
     """, unsafe_allow_html=True)
     
     st.divider()
     
-    # --- 图表：层层保障对比图 ---
-    st.write("### 📊 费用分担对比 (层层保障)")
+    # --- 图表：费用分担对比 (双重保障) ---
+    st.write("### 📊 费用分担对比 (双重保障)")
+    
+    # 更新标签名称
+    label_1 = '全额自费'
+    label_2 = '参加地方惠民保'
+    label_3 = '惠民保+双坦同行'
     
     chart_data = pd.DataFrame({
-        '情景': ['无保障', '仅有惠民保', '惠民保+双坦同行'],
+        '情景': [label_1, label_2, label_3],
         '患者自付费用': [cost_scenario_1, cost_scenario_2, cost_scenario_3],
         '标签': [f'¥{cost_scenario_1:,.0f}', f'¥{cost_scenario_2:,.0f}', f'¥{cost_scenario_3:,.0f}']
     })
@@ -131,8 +149,8 @@ with col2:
 
     bars = base.mark_bar(size=40).encode(
         color=alt.Color('情景', scale=alt.Scale(
-            domain=['无保障', '仅有惠民保', '惠民保+双坦同行'],
-            range=['#e74c3c', '#3498db', '#27ae60'] 
+            domain=[label_1, label_2, label_3],
+            range=['#e74c3c', '#3498db', '#27ae60'] # 红色 -> 蓝色 -> 绿色
         ), legend=None)
     )
     
@@ -149,5 +167,5 @@ with col2:
 
     st.altair_chart(final_chart, use_container_width=True)
     
-    st.info(f"📉 **节省统计：** 相比无保障全额自费，该方案预计共为您节省 **¥{(cost_scenario_1 - cost_scenario_3):,.0f}** 元。")
+    st.info(f"📉 **节省统计：** 相比全额自费，该方案预计共为您节省 **¥{(cost_scenario_1 - cost_scenario_3):,.0f}** 元。")
 
